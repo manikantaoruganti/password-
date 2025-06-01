@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Password Vault</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f4f8;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+    }
+    h1 {
+      font-size: 2.2rem;
+      margin-bottom: 1rem;
+    }
+    .vault-form, .vault-list {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 10px;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 500px;
+      margin-bottom: 2rem;
+    }
+    input, button {
+      width: 100%;
+      padding: 0.7rem;
+      margin: 0.5rem 0;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 1rem;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    .entry {
+      background: #e7f3ff;
+      padding: 0.7rem;
+      margin-top: 1rem;
+      border-radius: 8px;
+    }
+    footer {
+      margin-top: 3rem;
+      font-size: 0.9rem;
+      color: #666;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>Password Vault</h1>
+  <div class="vault-form">
+    <input type="text" id="site" placeholder="Site Name">
+    <input type="text" id="username" placeholder="Username">
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="savePassword()">Save Password</button>
+  </div>
+  <div class="vault-list" id="vaultList">
+    <h2>Saved Passwords</h2>
+    <div id="entries"></div>
+  </div>
+  <footer>
+    Manikanta Venkateswarlu All rights reserved &copy; <span id="copyrightYear"></span>
+  </footer>
+  <script>
+    async function encryptText(text, key) {
+      const enc = new TextEncoder().encode(text);
+      const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key));
+      const cryptoKey = await crypto.subtle.importKey('raw', hash, 'AES-GCM', false, ['encrypt']);
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cryptoKey, enc);
+      return {
+        iv: Array.from(iv),
+        data: Array.from(new Uint8Array(encrypted))
+      };
+    }
+
+    async function decryptText(encryptedObj, key) {
+      const iv = new Uint8Array(encryptedObj.iv);
+      const data = new Uint8Array(encryptedObj.data);
+      const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key));
+      const cryptoKey = await crypto.subtle.importKey('raw', hash, 'AES-GCM', false, ['decrypt']);
+      try {
+        const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, cryptoKey, data);
+        return new TextDecoder().decode(decrypted);
+      } catch (e) {
+        return '[Decryption failed]';
+      }
+    }
+
+    async function savePassword() {
+      const site = document.getElementById('site').value;
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const masterKey = 'myMasterKey'; // for demo only, in real use ask user
+      if (!site || !username || !password) return alert('Please fill all fields');
+      const encrypted = await encryptText(password, masterKey);
+      const entry = { site, username, password: encrypted };
+      const vault = JSON.parse(localStorage.getItem('vault') || '[]');
+      vault.push(entry);
+      localStorage.setItem('vault', JSON.stringify(vault));
+      loadVault();
+    }
+
+    async function loadVault() {
+      const entriesDiv = document.getElementById('entries');
+      entriesDiv.innerHTML = '';
+      const vault = JSON.parse(localStorage.getItem('vault') || '[]');
+      const masterKey = 'myMasterKey';
+      for (const entry of vault) {
+        const decrypted = await decryptText(entry.password, masterKey);
+        const div = document.createElement('div');
+        div.className = 'entry';
+        div.innerHTML = `<strong>${entry.site}</strong><br>Username: ${entry.username}<br>Password: ${decrypted}`;
+        entriesDiv.appendChild(div);
+      }
+    }
+
+    loadVault();
+
+    // Set copyright year
+    document.addEventListener('DOMContentLoaded', () => {
+      const year 
+= new Date().getFullYear();
+      document.getElementById('copyrightYear').textContent = year;
+    });
+  </script>
+</body>
+</html>
